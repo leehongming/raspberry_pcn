@@ -64,7 +64,7 @@ class pcn_normal_calibration(object):
     Wait for several seconds and type in Enter to continue.""")
         # Todo
         # Modify the PCN to get the delayMM, delay_ms, delay_sm.
-        delay_info = pcn.get_link_delay()
+        delay_info = self.pcn.get_link_delay()
         rt_delay_l1 = delay_info[0]
         rt_delay_l1_ms = delay_info[1]
         rt_delay_l1_sm = delay_info[2]
@@ -73,7 +73,7 @@ class pcn_normal_calibration(object):
     Connect PCN master port and PCN slave port with fibre L2. 
     L2 should be fibre whose length is above 1km.
     Wait for several seconds and type in Enter to continue.""")
-        delay_info = pcn.get_link_delay()
+        delay_info = self.pcn.get_link_delay()
         rt_delay_l2 = delay_info[0]
         rt_delay_l2_ms = delay_info[1]
         rt_delay_l2_sm = delay_info[2]
@@ -81,7 +81,7 @@ class pcn_normal_calibration(object):
         input("""
     Connect PCN master port and PCN slave port with fibre L1+L2. 
     Wait for several seconds and type in Enter to continue.""")
-        delay_info = pcn.get_link_delay()
+        delay_info = self.pcn.get_link_delay()
         rt_delay_l1_l2 = delay_info[0]
         rt_delay_l1_l2_ms = delay_info[1]
         rt_delay_l1_l2_sm = delay_info[2]
@@ -177,54 +177,6 @@ class pcn_normal_calibration(object):
         print("""
     The calibration prepration has finished.""")
 
-    def do_calibration(self):
-        
-        ## WR information part
-        self.wrn.get_sfp_info()
-        if (self.wrn_role == "slave"):
-            delay_mm, delay_ms, delay_sm = self.wrn.get_link_delay()
-            self.wrn.sfp0_tx = (delay_mm - self.pcn.sfp1_tx - self.pcn.sfp1_rx - self.fibre_delay_rt) / 2
-            self.wrn.sfp0_rx = (delay_mm - self.pcn.sfp1_tx - self.pcn.sfp1_rx - self.fibre_delay_rt) / 2
-            # Reset the sfp database of wrn and restart wrn
-            self.wrn.erase_sfp_info()
-            self.wrn.set_sfp_info(0)
-            self.wrn.set_sfp_info(1) # Avoid losing the SFP1 info
-            if(self.wrn.restart(True)):
-                return 1
-        elif (self.wrn_role == "master"):
-            # Todo
-            # Should get the sync status through pcn
-            delay_mm, delay_ms, delay_sm = self.pcn.get_link_delay()
-            self.wrn.sfp1_tx = (delay_mm - self.pcn.sfp0_tx - self.pcn.sfp0_rx - self.fibre_delay_rt) / 2
-            self.wrn.sfp1_rx = (delay_mm - self.pcn.sfp0_tx - self.pcn.sfp0_rx - self.fibre_delay_rt) / 2
-            # Reset the sfp database of wrn and restart wrn
-            self.wrn.erase_sfp_info()
-            self.wrn.set_sfp_info(0) # Avoid losing the SFP0 info
-            self.wrn.set_sfp_info(1) 
-            if(self.pcn.restart(True)):
-                return 1
-        else:
-            print("The wrn role is not valid.")
-            return 1
-
-        ## TDC measurement part
-        # restart the TDC
-        self.tdc_reset(self)
-        time.sleep(1)
-        timeout = 0
-        while(abs(do_verification(self))>self.calib_threshold):
-            if self.wrn_role=="slave":
-                self.wrn.restart(True)
-            else:
-                self.pcn.restart(True)
-            time.sleep(1)
-            if timeout<5:
-                timeout += 1
-            else:
-                return 1
-        print("Calibration has finished!")
-        return 0
-
 
     #Todo
     #Need to consider the ch1_input_delay and ch2_input_delay
@@ -258,8 +210,8 @@ class pcn_normal_calibration(object):
                 print("There are no enough TDC fall measurement results!")
                 return 0
         
-        calc_rise_diff = calc_rise_diff // self.loop_num + ch1_input_delay - ch2_input_delay
-        calc_fall_diff = calc_fall_diff // self.loop_num + ch1_input_delay - ch2_input_delay
+        calc_rise_diff = calc_rise_diff // self.loop_num + self.ch1_input_delay - self.ch2_input_delay
+        calc_fall_diff = calc_fall_diff // self.loop_num + self.ch1_input_delay - self.ch2_input_delay
 
         print("The PPS skew between master and slave is %d"%(calc_rise_diff))
 
@@ -286,12 +238,63 @@ class pcn_normal_calibration(object):
                 self.wrn.set_sfp_info(1)
         return calc_rise_diff
 
+    def do_calibration(self):
+        
+        ## WR information part
+        self.wrn.get_sfp_info()
+        if (self.wrn_role == "slave"):
+            delay_mm, delay_ms, delay_sm = self.wrn.get_link_delay()
+            self.wrn.sfp0_tx = (delay_mm - self.pcn.sfp1_tx - self.pcn.sfp1_rx - self.fibre_delay_rt) / 2
+            self.wrn.sfp0_rx = (delay_mm - self.pcn.sfp1_tx - self.pcn.sfp1_rx - self.fibre_delay_rt) / 2
+            # Reset the sfp database of wrn and restart wrn
+            self.wrn.erase_sfp_info()
+            self.wrn.set_sfp_info(0)
+            self.wrn.set_sfp_info(1) # Avoid losing the SFP1 info
+            if(self.wrn.restart(True)):
+                return 1
+        elif (self.wrn_role == "master"):
+            # Todo
+            # Should get the sync status through pcn
+            delay_mm, delay_ms, delay_sm = self.pcn.get_link_delay()
+            self.wrn.sfp1_tx = (delay_mm - self.pcn.sfp0_tx - self.pcn.sfp0_rx - self.fibre_delay_rt) / 2
+            self.wrn.sfp1_rx = (delay_mm - self.pcn.sfp0_tx - self.pcn.sfp0_rx - self.fibre_delay_rt) / 2
+            # Reset the sfp database of wrn and restart wrn
+            self.wrn.erase_sfp_info()
+            self.wrn.set_sfp_info(0) # Avoid losing the SFP0 info
+            self.wrn.set_sfp_info(1) 
+            if(self.pcn.restart(True)):
+                return 1
+        else:
+            print("The wrn role is not valid.")
+            return 1
+
+        ## TDC measurement part
+        # restart the TDC
+        self.tdc_reset()
+        time.sleep(1)
+        timeout = 0
+        while(abs(self.do_verification())>self.calib_threshold):
+            if self.wrn_role=="slave":
+                self.wrn.restart(True)
+            else:
+                self.pcn.restart(True)
+            time.sleep(1)
+            if timeout<5:
+                timeout += 1
+            else:
+                return 1
+        print("Calibration has finished!")
+        return 0
+
+
+
+
 def main():
     calib = pcn_normal_calibration("slave")
-    # calib.pre_calibration()
-    # calib.do_calibration()
+    #calib.pre_calibration()
+    calib.do_calibration()
     # calib.tdc_reset()
-    calib.do_verification()
+    #calib.do_verification()
 
 if __name__ == '__main__':
     main()

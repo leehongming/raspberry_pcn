@@ -134,11 +134,12 @@ class wrn(object):
 
 
         time.sleep(10)
-
+        
         if (check_status):
             timeout = 0
             sync_state = "IDLE"
             while (not ("TRACK_PHASE" in sync_state)):
+                print "wait sync..."
                 timeout += 1
                 sync_state = self.get_sync_state()
                 if (timeout>80):
