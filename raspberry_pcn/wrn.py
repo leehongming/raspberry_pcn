@@ -170,17 +170,19 @@ class wrn(object):
         uart.SerialTx(self.device,"stat",0.2,200)
         # Todo
         # Get delayMM/delayMS/delaySM from WRPC, bitslide has been removed.
-        link_info = link_delay_output.split(" ")
-        delay_mm = int((link_info[11].split(":"))[1])
-        delay_ms = int((link_info[12].split(":"))[1])
+        link_info = (link_delay_output.split("lnk")[1]).split(" ")
+        print link_info
+        delay_mm = int((link_info[9].split(":"))[1])
+        delay_ms = int((link_info[10].split(":"))[1])
         delay_sm = delay_mm-delay_ms
         return delay_mm,delay_ms,delay_sm
 
 def main():
-    wrn_pcn = wrn("pcn")
+    wrn_pcn = wrn("wrn")
     # wrn_pcn.get_sync_state()
     # wrn_pcn.get_sfp_info()
-    wrn_pcn.restart(True)
+    #wrn_pcn.restart(True)
+    print wrn_pcn.get_link_delay()
     # print(wrn_pcn.sfp0_pn)
     # print(wrn_pcn.sfp0_tx)
     # print(wrn_pcn.sfp0_rx)
