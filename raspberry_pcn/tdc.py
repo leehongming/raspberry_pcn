@@ -40,9 +40,21 @@ class tdc(object):
         start TDC measurement.
         
         :param null
-        :returns null
+        :returns: null
         """
-        gpio.tdc_meas_start()
+        tdc_cnt = 0
+        while gpio.tdc_meas_start() == 1 :
+            print ("TDC data is not enough")
+            read_channel(0)
+            read_channel(1)
+            read_channel(2)
+            read_channel(3)
+            if tdc_cnt == 5:
+                print "quit"
+                sys.exit()
+            tdc_cnt += 1 
+            print ("Restart the tdc measure procedure d% times",tdc_cnt)    
+        
 
     def debug_output(self):
         pass
@@ -67,7 +79,9 @@ class tdc(object):
             rise difference list
         """
         ch1_rise = self.read_channel(0)
+        
         ch2_rise = self.read_channel(1)
+        
         if (len(ch1_rise)==0) or (len(ch2_rise))==0:
             print("TDC readout error")
             return 0
@@ -78,7 +92,7 @@ class tdc(object):
             rise_diff_list=[]
             while True:
                 rise_diff = ch1_rise[ch1_i] - ch2_rise[ch2_i]
-                if abs(rise_diff)<500000000: # 0.5ms
+                if abs(rise_diff)<50000000000: # 50ms
                     rise_diff_list.append(rise_diff)
                     ch1_i = ch1_i + 1
                     ch2_i = ch2_i + 1
@@ -116,7 +130,7 @@ class tdc(object):
             fall_diff_list=[]
             while True:
                 fall_diff = ch1_fall[ch1_i] - ch2_fall[ch2_i]
-                if abs(fall_diff)<500000000: # 0.5ms
+                if abs(fall_diff)<50000000000: # 50ms
                     fall_diff_list.append(fall_diff)
                     ch1_i = ch1_i + 1
                     ch2_i = ch2_i + 1
@@ -134,6 +148,7 @@ class tdc(object):
             pass
         return fall_diff_list
 
+    
 def main():
     test_tdc = tdc()
     test_tdc.meas_start()
@@ -145,7 +160,7 @@ def main():
     calc_rise_diff = test_tdc.calc_rise_diff()
     calc_fall_diff = test_tdc.calc_fall_diff()
     print(numpy.mean(calc_rise_diff),numpy.std(calc_rise_diff))
-    print(numpy.mean(calc_fall_diff),numpy.std(calc_fall_diff))
+    #print(numpy.mean(calc_fall_diff),numpy.std(calc_fall_diff))
 
 if __name__ == "__main__":
     main()

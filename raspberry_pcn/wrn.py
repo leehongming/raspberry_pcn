@@ -178,6 +178,22 @@ class wrn(object):
         delay_sm = delay_mm-delay_ms
         return delay_mm,delay_ms,delay_sm
 
+    def set_init_cmd(self,wrn_ip):
+        ipset_cmd = "init add ip set 192.168.1"+str(wrn_ip)
+
+        if (self.role == "slave"):
+            uart.SerialTx(self.device,"init erase",0.2,200)
+            uart.SerialTx(self.device,"init add ptp stop",0.2,200)
+            uart.SerialTx(self.device,".x",0.2,200)
+            uart.SerialTx(self.device,ipset_cmd,0.2,200)
+            uart.SerialTx(self.device,"init add calibration",0.2,200)
+            uart.SerialTx(self.device,"init add ptp start",0.2,200)
+            print(uart.SerialTx(self.device,"init show",0.2,200))
+            print(uart.SerialTx(self.device,"init boot",0.2,200))
+            time.sleep(10)
+        return 0
+
+
 def main():
     wrn_pcn = wrn("wrn")
     # wrn_pcn.get_sync_state()

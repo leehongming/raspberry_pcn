@@ -13,21 +13,26 @@ def SerialTx(device,cmd,timeout=0,read_buf=1000):
         "null" : error happens
         others : read from WR node
     """
-    ser = serial.Serial(device,115200,timeout=0.5)
-    if ser.isOpen():
-        mes = cmd+"\r"
-        i = 0
-        while mes[i]!="\r":
-            ser.write(mes[i].encode('utf-8'))
-            time.sleep(0.05)
-            i+=1
-        ser.write("\r".encode('utf-8'))
-        time.sleep(timeout)
-        return(ser.read(read_buf).decode('utf-8'))
-    else:
-        print("Serial Open Error")
-        return ("null")
-
+    try:
+        ser = serial.Serial(device,115200,timeout=0.5)
+        if ser.isOpen():
+            mes = cmd+"\r"
+            i = 0
+            while mes[i]!="\r":
+                ser.write(mes[i].encode('utf-8'))
+                time.sleep(0.05)
+                i+=1
+            ser.write("\r".encode('utf-8'))
+            time.sleep(timeout)
+            temp=ser.read(read_buf)
+            return(temp.decode('utf-8'))
+        else:
+            print("Serial Open Error")
+            return ("null")
+    except Exception as e:
+        print e
+        return temp
+    
 def SerialTxEsc(device):
     """
     Send the "ESC" to WR node.

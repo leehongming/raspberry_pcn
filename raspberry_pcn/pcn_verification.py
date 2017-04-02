@@ -1,11 +1,28 @@
 #!/usr/bin/python3
 import sys
 import time
+import wrn 
+import tdc
+import numpy
+import configparser
 
+def usage():
+    """
+    Usage of PCN Verification
+    """
+    print(" ")
+    print("PCN verification mode.")
+    print(" ")
+    print("-h, --help")
+    print("      Print out usage of this program.")
+    print(" ")
+    print("default")
+    print("      Enter the verification mode")
+    print(" ")
+    
 class pcn_verification(object):
-    """
-    PCN verification mode.
-    """
+
+
     def __init__(self):
         super(pcn_verification, self).__init__()
         config = configparser.ConfigParser()
@@ -13,37 +30,23 @@ class pcn_verification(object):
             config.read('config/pcn_normal_calibration.ini')
             self.loop_num = int(config.get('DEFAULT','loop_num'))
             self.calib_threshold = int(config.get('DEFAULT','calib_threshold'))
-            self.fibre_delay_rt = int(config.get('WR','fibre_delay_rt'))
-            self.sfp0_pn = config.get('WR','sfp0_pn')
-            self.sfp1_pn = config.get('WR','sfp1_pn')
-            self.sfp0_tx = int(config.get('WR','sfp0_tx'))
-            self.sfp0_rx = int(config.get('WR','sfp0_rx'))
-            self.sfp0_alpha   = int(config.get('WR','sfp0_alpha'))
-            self.sfp1_tx = int(config.get('WR','sfp1_tx'))
-            self.sfp1_rx = int(config.get('WR','sfp1_rx'))
-            self.sfp1_alpha   = int(config.get('WR','sfp1_alpha'))
             self.ch1_input_delay = int(config.get('TDC','ch1_input_delay'))
             self.ch2_input_delay = int(config.get('TDC','ch2_input_delay'))
         except:
             print("Read configuration file error, use default values.")
             self.loop_num = 1
             self.calib_threshold = 150
-            self.fibre_delay_rt = 15000
-            self.sfp0_pn = "SFP-GE-BX"
-            self.sfp1_pn = "SFP-GE-BX"
-            self.sfp0_tx = 232232
-            self.sfp0_rx = 167768
-            self.sfp1_tx = 175501
-            self.sfp1_rx = 224399
-            self.sfp0_alpha = 64398396
-            self.sfp1_alpha = -64398396
             self.ch1_input_delay = 0
             self.ch2_input_delay = 0
         self.pcn = wrn.wrn("pcn")
-        self.wrn_role = wrn_role
-        self.wrn = wrn.wrn(wrn_role)
         self.tdc = tdc.tdc()
+        
 
+
+    def tdc_reset(self):
+        return (self.tdc.restart())
+
+    
     def do_verification(self):
     	"""
 		Verification mode.
@@ -51,12 +54,14 @@ class pcn_verification(object):
 		Check the mPPS skew between the clock of WR node and master clock of WR network.
     	"""
 
-
-    	input("""
-    Now you are in verification mode . 
+        try:
+        	input("""
+        Now you are in verification mode . 
 	First of all, connect the PCN slave port to the top node of WR network.
-	And then plug the mPPS signal of WRN and PCN to the TDC input port.
-	Wait for several seconds and type in Enter to continue.""")
+	And then plug the mPPS signal of WRN and PCN to the TDC input ports.
+	Wait for several seconds and type in "1" and Enter to continue.""")
+        except Exception as e:
+            pass
 
         calc_rise_diff = 0
 
@@ -64,7 +69,7 @@ class pcn_verification(object):
             self.tdc.meas_start()
             time.sleep(1)
             calc_rise_list = self.tdc.calc_rise_diff()
-            
+            calc_fall_diff = self.tdc.calc_fall_diff()
             if len(calc_rise_list)>10:
                 if (numpy.std(calc_rise_list)<50):
                     calc_rise_diff += numpy.mean(calc_rise_list)
@@ -74,22 +79,56 @@ class pcn_verification(object):
             else:
                 print("There are no enough TDC rise measurement results")
                 return 0
-                
-        
-        calc_rise_diff = (calc_rise_diff // self.loop_nu) + ch1_input_delay - ch2_input_delay
+                        
+        calc_rise_diff = (calc_rise_diff // self.loop_num) + self.ch1_input_delay - self.ch2_input_delay
 
         print("The PPS skew between master and slave is %d"%(calc_rise_diff))
-
-        verification_result = (abs(calc_rise_diff)>self.calib_threshold)
-        
-        if(verification_result):
-        	print("The wrn is synchronous to the master clock")
+        if((abs(calc_rise_diff)<self.calib_threshold)):
+            print("The wrn is synchronous to the master clock")
         else:
-        	print("THe wrn is not synchronous to the master clock")
+            print("THe wrn is not synchronous to the master clock")
 
-        return verification_result
+        return 0
 
 def main():
+       """
+    NAME:
+        Portable calibration node verification mode.
+
+    SYNOPSIS:
+        ./pcn_verification.py [] [-h]  
+    
+    DESCRIPTION:
+        This script is used for portable calibration node. After connecting 
+        the pcn to the top wr node in wr network, this script can can measure 
+        the skew between wrn and pcn. And we can judge if the wr node work 
+        correctly.  
+
+    OPTIONS: 
+        -h, --help
+              print out usage of this program.
+         
+        default
+              Enter the verification mode, measure the skew between wrn and pcn.
+    """  
+    
+    try:
+        opts,args = getopt.getopt(argv[1:],"h",["help"])
+    except Exception as e:
+        usage()
+        sys.exit()
+    if len(opts) == 0:
+        verif = pcn_verification()
+        verif.do_verification()
+    else:
+        for opt in opts:
+            if opt in ("-f","--help")
+                usage()
+                sys.exit()
+            else:
+                print "Wrong Parameter!"
+                usage()
+                sys.exit()
 
 if __name__ == '__main__':
     main()
