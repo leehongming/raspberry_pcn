@@ -69,9 +69,11 @@ def main():
     cmd = operation[0]
     value = operation[1]
     if cmd in ("-c","c","--c"):
-        print(SerialTx("/dev/ttyUSB0",value,1))
+        # print(SerialTx("/dev/ttyUSB0",value,1))
+        print(SerialTx("/dev/ttyAMA0",value,1.1,1000))
     else:
-        SerialTxEsc("/dev/ttyUSB0")
+        #SerialTxEsc("/dev/ttyUSB0")
+        SerialTxEsc("/dev/ttyAMA0")
         
 if __name__ == "__main__":
     main()

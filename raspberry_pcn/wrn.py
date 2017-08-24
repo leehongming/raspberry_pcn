@@ -127,7 +127,13 @@ class wrn(object):
         """
         if (uart.SerialTxEsc(self.device)):
             return 1
+        # Restart the LM32 software
+        # Todo
+        # Bug: after running "init boot", the slave cannot sync to master
         print(uart.SerialTx(self.device,"init boot"))
+
+
+        time.sleep(10)
 
         if (check_status):
             timeout = 0
@@ -147,22 +153,30 @@ class wrn(object):
         if (uart.SerialTxEsc(self.device)):
             return ("null")
 
-        # Todo 
         # Get sync state through command "stat"
-        # state_output = uart.SerialTx(self.device,"stat",2)
+        state_output = uart.SerialTx(self.device,"stat",1.2,1000)
         # turn off the stat statistics
-        # uart.SerialTx(self.device,"stat",0.1)
-        state_output = "TRACK_PHASE"
-        return state_output
+        uart.SerialTx(self.device,"stat",0.2,200)
+
+        if len(state_output)>50:
+            return state_output
+        return ("null")
 
     def get_link_delay(self):
+
+        # Get sync state through command "stat"
+        link_delay_output = uart.SerialTx(self.device,"stat",1.2,1000)
+        # turn off the stat statistics
+        uart.SerialTx(self.device,"stat",0.2,200)
         # Todo
         # Get delayMM/delayMS/delaySM from WRPC, bitslide has been removed.
+        
         return 10000,5000,5000
 
 def main():
-    wrn_pcn = wrn("wrn")
-    wrn_pcn.get_sfp_info()
+    wrn_pcn = wrn("pcn")
+    # wrn_pcn.get_sync_state()
+    # wrn_pcn.get_sfp_info()
     wrn_pcn.restart(True)
     # print(wrn_pcn.sfp0_pn)
     # print(wrn_pcn.sfp0_tx)
