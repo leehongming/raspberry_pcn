@@ -64,24 +64,27 @@ class pcn_normal_calibration(object):
     Wait for several seconds and type in Enter to continue.""")
         # Todo
         # Modify the PCN to get the delayMM, delay_ms, delay_sm.
-        rt_delay_l1 = 0
-        rt_delay_l1_sm = 200
-        rt_delay_l1_ms = 200
+        delay_info = wrn.get_link_delay()
+        rt_delay_l1 = delay_info[0]
+        rt_delay_l1_ms = delay_info[1]
+        rt_delay_l1_sm = delay_info[2]
 
         input("""
     Connect PCN master port and PCN slave port with fibre L2. 
     L2 should be fibre whose length is above 1km.
     Wait for several seconds and type in Enter to continue.""")
-        rt_delay_l2 = 0
-        rt_delay_l2_sm = 900
-        rt_delay_l2_ms = 900
+        delay_info = wrn.get_link_delay()
+        rt_delay_l2 = delay_info[0]
+        rt_delay_l2_ms = delay_info[1]
+        rt_delay_l2_sm = delay_info[2]
 
         input("""
     Connect PCN master port and PCN slave port with fibre L1+L2. 
     Wait for several seconds and type in Enter to continue.""")
-        rt_delay_l1_l2 = 1
-        rt_delay_l1_l2_sm = 1000
-        rt_delay_l1_l2_ms = 1000
+        delay_info = wrn.get_link_delay()
+        rt_delay_l1_l2 = delay_info[0]
+        rt_delay_l1_l2_ms = delay_info[1]
+        rt_delay_l1_l2_sm = delay_info[2]
 
         # Todo
         # Get the exact L1 fibre delay.
@@ -131,11 +134,13 @@ class pcn_normal_calibration(object):
     Wait for several seconds and type in Enter to continue.""")
         # Todo
         # start the TDC.
+        self.tdc.meas_start()
 
         # Todo
         # Measure the PPS skew
-        ch1_input_delay = 0
-        ch1_ch2_diff_1 = 0
+        tdc_rise_diff_list_1 = self.tdc.calc_rise_diff()
+        #ch1_input_delay = 0 
+        ch1_ch2_diff_1 = numpy.mean(tdc_rise_diff_list_1)
 
         input("""
     Now exchange the two mPPS input signals.
@@ -143,8 +148,10 @@ class pcn_normal_calibration(object):
 
         # Todo
         # Measure the PPS skew again
-        ch1_ch2_diff_2 = 0        
-
+        self.tdc.meas_start()
+        tdc_rise_diff_list_2 = self.tdc.calc_rise_diff()
+        ch1_ch2_diff_2 = numpy.mean(tdc_rise_diff_list_2)
+        
         ch2_input_delay = ch1_input_delay - (ch1_ch2_diff_1+ch1_ch2_diff_2)//2
 
         config = configparser.ConfigParser()
@@ -218,6 +225,9 @@ class pcn_normal_calibration(object):
         print("Calibration has finished!")
         return 0
 
+
+    #Todo
+    #Need to consider the ch1_input_delay and ch2_input_delay
     def do_verification(self):
         calc_rise_diff = 0
         calc_fall_diff = 0
