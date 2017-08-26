@@ -64,7 +64,7 @@ class pcn_normal_calibration(object):
     Wait for several seconds and type in Enter to continue.""")
         # Todo
         # Modify the PCN to get the delayMM, delay_ms, delay_sm.
-        delay_info = wrn.get_link_delay()
+        delay_info = pcn.get_link_delay()
         rt_delay_l1 = delay_info[0]
         rt_delay_l1_ms = delay_info[1]
         rt_delay_l1_sm = delay_info[2]
@@ -73,7 +73,7 @@ class pcn_normal_calibration(object):
     Connect PCN master port and PCN slave port with fibre L2. 
     L2 should be fibre whose length is above 1km.
     Wait for several seconds and type in Enter to continue.""")
-        delay_info = wrn.get_link_delay()
+        delay_info = pcn.get_link_delay()
         rt_delay_l2 = delay_info[0]
         rt_delay_l2_ms = delay_info[1]
         rt_delay_l2_sm = delay_info[2]
@@ -81,7 +81,7 @@ class pcn_normal_calibration(object):
         input("""
     Connect PCN master port and PCN slave port with fibre L1+L2. 
     Wait for several seconds and type in Enter to continue.""")
-        delay_info = wrn.get_link_delay()
+        delay_info = pcn.get_link_delay()
         rt_delay_l1_l2 = delay_info[0]
         rt_delay_l1_l2_ms = delay_info[1]
         rt_delay_l1_l2_sm = delay_info[2]
@@ -105,10 +105,10 @@ class pcn_normal_calibration(object):
             fixed_delay_asym_master = 0
 
         fixed_delay_asym_slave = fixed_delay_asym_master - fixed_delay_asym
-        sfp0_tx = fixed_delay_sum//2 + fixed_delay_asym_master
-        sfp0_rx = fixed_delay_sum//2 - fixed_delay_asym_master
-        sfp1_tx = fixed_delay_sum//2 + fixed_delay_asym_slave
-        sfp1_rx = fixed_delay_sum//2 - fixed_delay_asym_slave
+        sfp0_tx = fixed_delay_sum//4 + fixed_delay_asym_master
+        sfp0_rx = fixed_delay_sum//4 - fixed_delay_asym_master
+        sfp1_tx = fixed_delay_sum//4 + fixed_delay_asym_slave
+        sfp1_rx = fixed_delay_sum//4 - fixed_delay_asym_slave
 
         # Get alpha
         fibre_alpha = (float(rt_delay_l1_l2_ms - rt_delay_l1_ms) / float(rt_delay_l1_l2_sm - rt_delay_l1_sm)) - 1
@@ -194,7 +194,7 @@ class pcn_normal_calibration(object):
         elif (self.wrn_role == "master"):
             # Todo
             # Should get the sync status through pcn
-            delay_mm, delay_ms, delay_sm = self.wrn.get_link_delay()
+            delay_mm, delay_ms, delay_sm = self.pcn.get_link_delay()
             self.wrn.sfp1_tx = (delay_mm - self.pcn.sfp0_tx - self.pcn.sfp0_rx - self.fibre_delay_rt) / 2
             self.wrn.sfp1_rx = (delay_mm - self.pcn.sfp0_tx - self.pcn.sfp0_rx - self.fibre_delay_rt) / 2
             # Reset the sfp database of wrn and restart wrn
@@ -258,8 +258,8 @@ class pcn_normal_calibration(object):
                 print("There are no enough TDC fall measurement results!")
                 return 0
         
-        calc_rise_diff = calc_rise_diff // self.loop_num
-        calc_fall_diff = calc_fall_diff // self.loop_num
+        calc_rise_diff = calc_rise_diff // self.loop_num + ch1_input_delay - ch2_input_delay
+        calc_fall_diff = calc_fall_diff // self.loop_num + ch1_input_delay - ch2_input_delay
 
         print("The PPS skew between master and slave is %d"%(calc_rise_diff))
 
