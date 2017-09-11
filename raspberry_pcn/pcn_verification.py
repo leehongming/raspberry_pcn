@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-import sys
+import sys,getopt
 import time
 import wrn 
 import tdc
@@ -21,17 +21,15 @@ def usage():
     print(" ")
     
 class pcn_verification(object):
-
-
     def __init__(self):
         super(pcn_verification, self).__init__()
         config = configparser.ConfigParser()
-      	try:
+        try:
             config.read('config/pcn_normal_calibration.ini')
             self.loop_num = int(config.get('DEFAULT','loop_num'))
             self.calib_threshold = int(config.get('DEFAULT','calib_threshold'))
-            self.ch1_input_delay = int(config.get('TDC','ch1_input_delay'))
-            self.ch2_input_delay = int(config.get('TDC','ch2_input_delay'))
+            self.ch1_input_delay = round(float(config.get('TDC','ch1_input_delay')))
+            self.ch2_input_delay = round(float(config.get('TDC','ch2_input_delay')))
         except:
             print("Read configuration file error, use default values.")
             self.loop_num = 1
@@ -53,9 +51,8 @@ class pcn_verification(object):
 
 		Check the mPPS skew between the clock of WR node and master clock of WR network.
     	"""
-
         try:
-        	input("""
+            input("""
         Now you are in verification mode . 
 	First of all, connect the PCN slave port to the top node of WR network.
 	And then plug the mPPS signal of WRN and PCN to the TDC input ports.
@@ -91,7 +88,7 @@ class pcn_verification(object):
         return 0
 
 def main():
-       """
+    """
     NAME:
         Portable calibration node verification mode.
 
@@ -110,26 +107,26 @@ def main():
          
         default
               Enter the verification mode, measure the skew between wrn and pcn.
-    """  
+    """
     
     try:
-        opts,args = getopt.getopt(argv[1:],"h",["help"])
+        opts,args = getopt.getopt(sys.argv[1:],"h",["help"])
     except Exception as e:
+        print e
         usage()
         sys.exit()
-    if len(opts) == 0:
-        verif = pcn_verification()
-        verif.do_verification()
     else:
-        for opt in opts:
-            if opt in ("-f","--help")
+        for opt,value in opts:
+            if opt in ('-h','--help'):
                 usage()
                 sys.exit()
             else:
                 print "Wrong Parameter!"
                 usage()
                 sys.exit()
-
+    
+    verif = pcn_verification()
+    verif.do_verification()
 if __name__ == '__main__':
     main()
 

@@ -45,15 +45,15 @@ class tdc(object):
         tdc_cnt = 0
         while gpio.tdc_meas_start() == 1 :
             print ("TDC data is not enough")
-            read_channel(0)
-            read_channel(1)
-            read_channel(2)
-            read_channel(3)
+            self.read_channel(0)
+            self.read_channel(1)
+            self.read_channel(2)
+            self.read_channel(3)
             if tdc_cnt == 5:
                 print "quit"
                 sys.exit()
             tdc_cnt += 1 
-            print ("Restart the tdc measure procedure d% times",tdc_cnt)    
+            print ("Restart the tdc measure procedure d% times" %(tdc_cnt))    
         
 
     def debug_output(self):

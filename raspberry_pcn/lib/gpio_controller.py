@@ -3,9 +3,9 @@ import RPi.GPIO as gpio
 import time
 
 ##  GPIO parameters
-MEAS_START_PIN  = 15
-MEAS_EMPTY_PIN = 13
-MEAS_FULL_PIN = 10
+MEAS_START_PIN  = 18
+MEAS_EMPTY_PIN = 16
+MEAS_FULL_PIN = 12
 
 def gpio_init():
     """ 
@@ -34,7 +34,7 @@ def tdc_meas_start():
     gpio.output(MEAS_START_PIN,gpio.LOW)
     if (gpio.input(MEAS_FULL_PIN) == 1):
         return 0
-    else 
+    else: 
         return 1
 
 def tdc_meas_finish():

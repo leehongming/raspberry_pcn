@@ -16,11 +16,11 @@ class wrn(object):
             self.device = "/dev/ttyAMA0"
         else:
             self.device = "/dev/ttyUSB0"
-        self.sfp0_pn    = "AXGE-1254-0531"
+        self.sfp0_pn    = "SFP-GE-BX"
         self.sfp0_tx    = 0
         self.sfp0_rx    = 0
         self.sfp0_alpha = 0
-        self.sfp1_pn    = "AXGE-3454-0531"
+        self.sfp1_pn    = "SFP-GE-BX"
         self.sfp1_tx    = 0
         self.sfp1_rx    = 0
         self.sfp1_alpha = 0
@@ -164,14 +164,20 @@ class wrn(object):
         return ("null")
 
     def get_link_delay(self):
-
-        # Get sync state through command "stat"
-        link_delay_output = uart.SerialTx(self.device,"stat",1.2,1000)
-        # turn off the stat statistics
-        uart.SerialTx(self.device,"stat",0.2,200)
+        timeout = 0
+        sync_state = "IDLE"
+        while (not ("TRACK_PHASE" in sync_state)):
+                print "wait sync..."
+                timeout += 1
+                sync_state = self.get_sync_state()
+                if (timeout>80):
+                    print("The synchronization cannot be achieved.")
+                    return 1
+                else:
+                    timeout+=1
         # Todo
         # Get delayMM/delayMS/delaySM from WRPC, bitslide has been removed.
-        link_info = (link_delay_output.split("lnk")[1]).split(" ")
+        link_info = (sync_state.split("lnk")[1]).split(" ")
         print link_info
         delay_mm = int((link_info[9].split(":"))[1])
         delay_ms = int((link_info[10].split(":"))[1])
@@ -193,7 +199,9 @@ class wrn(object):
             time.sleep(10)
         return 0
 
-
+    def uart_test(self):
+        uart.SerialTxEsc(self.device)
+        print(uart.SerialTx(self.device,"init show",0.2,200))
 def main():
     wrn_pcn = wrn("wrn")
     # wrn_pcn.get_sync_state()

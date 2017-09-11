@@ -1,10 +1,10 @@
 #!/usr/bin/python3
 import sys,getopt
 import time
-# import wrn 
-# import tdc
-# import numpy
-# import configparser
+import wrn 
+import tdc
+import numpy
+import configparser
 
 def usage():
     """
@@ -49,10 +49,11 @@ class pcn_normal_calibration(object):
             self.sfp1_tx = int(config.get('WR','sfp1_tx'))
             self.sfp1_rx = int(config.get('WR','sfp1_rx'))
             self.sfp1_alpha   = int(config.get('WR','sfp1_alpha'))
-            self.ch1_input_delay = int(config.get('TDC','ch1_input_delay'))
-            self.ch2_input_delay = int(config.get('TDC','ch2_input_delay'))
+            self.ch1_input_delay = round(float(config.get('TDC','ch1_input_delay')))
+            self.ch2_input_delay = round(float(config.get('TDC','ch2_input_delay')))
             self.wrn_ip = int(config.get('LOG','wrn_ip'))%256
-        except:
+        except Exception as e:
+            print e
             print("Read configuration file error, use default values.")
             self.loop_num = 1
             self.calib_threshold = 150
@@ -68,6 +69,7 @@ class pcn_normal_calibration(object):
             self.ch1_input_delay = 0
             self.ch2_input_delay = 0
             self.wrn_ip = 0
+        self.skew = 0
         self.pcn = wrn.wrn("pcn")
         self.wrn_role = wrn_role
         self.wrn = wrn.wrn(wrn_role)
@@ -94,10 +96,12 @@ class pcn_normal_calibration(object):
                     calc_rise_diff += numpy.mean(calc_rise_list)
                 else:
                     print("The std %d of TDC rise measurement is too large!"%(numpy.std(calc_rise_list)))
+                    self.skew = "std to large"
                     return 0
             else:
                 print("There are no enough TDC rise measurement results")
                 print len(calc_rise_list)
+                self.skew = "no enough TDC rise measurement results"
                 return 0
                 
             if len(calc_fall_list)>10:
@@ -136,11 +140,58 @@ class pcn_normal_calibration(object):
                 self.wrn.erase_sfp_info()
                 self.wrn.set_sfp_info(0)
                 self.wrn.set_sfp_info(1)
+        self.skew = calc_rise_diff
         return calc_rise_diff
 
+    def save_data(self):
+        """
+            save pcn parameter to pcn_normal_calibration.ini
+            
+            save calibration log to calibration_log.ini
+            
+        """
+        config = configparser.ConfigParser()
+        config['LOG'] = {'wrn_ip' : (self.wrn_ip)+1}
+        
+        config['WR'] = {'fibre_delay_rt' : self.fibre_delay_rt,
+                        'sfp0_pn': self.sfp0_pn,
+                        'sfp1_pn': self.sfp1_pn,
+                        'sfp0_tx': self.sfp0_tx,
+                        'sfp0_rx': self.sfp0_rx,
+                        'sfp1_tx': self.sfp1_tx,
+                        'sfp1_rx': self.sfp1_rx,
+                        'sfp0_alpha'  : self.sfp0_alpha,
+                        "sfp1_alpha"  : self.sfp1_alpha
+                        }
+        
+        config['TDC'] = {'ch1_input_delay' : self.ch1_input_delay,
+                         'ch2_input_delay ': self.ch2_input_delay
+                         }
+        
+        config['DEFAULT'] = {'calib_threshold' : self.calib_threshold,
+                             'loop_num ': self.loop_num
+                         }
+        with open('config/pcn_normal_calibration.ini','w') as configfile:
+            config.write(configfile)        
+        
+        log_config = configparser.ConfigParser()
+        wrn_log_index = str(self.wrn_ip+1)
+        log_config[wrn_log_index] ={
+                        'wrn_sfp0_pn': self.wrn.sfp0_pn,
+                        'wrn_sfp0_tx': self.wrn.sfp0_tx,
+                        'wrn_sfp0_rx': self.wrn.sfp0_rx,
+                        'wrn_sfp0_alpha'  : self.wrn.sfp0_alpha,
+                        'wrn_rise_skew' : self.skew
+                        }
+                        
+        with open('config/calibration_log.ini','a') as configfile:
+            log_config.write(configfile)
+
+            
     def do_calibration(self):
         
         ## WR information part
+        
         self.wrn.get_sfp_info()
         if (self.wrn_role == "slave"):
             delay_mm, delay_ms, delay_sm = self.wrn.get_link_delay()
@@ -174,6 +225,7 @@ class pcn_normal_calibration(object):
         time.sleep(1)
         timeout = 0
         print "do_veri"
+        self.pcn.uart_test()
         while(abs(self.do_verification())>self.calib_threshold):
             if self.wrn_role=="slave":
                 self.wrn.restart(True)
@@ -184,26 +236,8 @@ class pcn_normal_calibration(object):
                 timeout += 1
             else:
                 return 1
-
-
-        config = configparser.ConfigParser()
-        config['LOG'] = {'wrn_ip' : wrn_ip+1}
-        with open('config/pcn_normal_calibration.ini','w') as configfile:
-            config.write(configfile)        
-        
-
-        wrn_log_index = str(wrn_ip+1)
-        config[wrn_log_index] ={
-                        'wrn_sfp0_pn': self.wrn.sfp0_pn,
-                        'wrn_sfp0_tx': self.wrn.sfp0_tx,
-                        'wrn_sfp0_rx': self.wrn.sfp0_rx,
-                        'wrn_sfp0_alpha'  : self.wrn.sfp0_alpha
-                        }
-                        
-        with open('config/calibration_log.ini','w') as configfile:
-            config.write(configfile)
+        self.save_data()
         print("Calibration has finished!")
-
         return 0
 
 
@@ -239,7 +273,8 @@ def main():
               1 : wrn is in master mode.
               default value is 0
         
-    """  
+    """
+    
     try:
         opts, args = getopt.getopt(sys.argv[1:], "hm:r:",["help","mode ","role "])
     except getopt.GetoptError:
@@ -292,6 +327,8 @@ def main():
     else:
         pass
     
+    #calib = pcn_normal_calibration("slave")
+    #calib.do_calibration()
     # #calib.pre_calibration()
     # calib.do_calibration()
     # # calib.tdc_reset()

@@ -25,13 +25,17 @@ def SerialTx(device,cmd,timeout=0,read_buf=1000):
             ser.write("\r".encode('utf-8'))
             time.sleep(timeout)
             temp=ser.read(read_buf)
-            return(temp.decode('utf-8'))
+            if device=="/dev/ttyAMA0":
+                print ("#",cmd,timeout)
+            return(temp.decode('utf-8'))    
         else:
             print("Serial Open Error")
             return ("null")
     except Exception as e:
         print e
         return temp
+    finally:
+        ser.close()
     
 def SerialTxEsc(device):
     """

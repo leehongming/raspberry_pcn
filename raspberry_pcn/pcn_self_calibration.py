@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-import sys
+import sys,getopt
 import time
 import wrn 
 import tdc
@@ -34,35 +34,77 @@ class pcn_self_calibration(object):
         super(pcn_self_calibration, self).__init__()
         config = configparser.ConfigParser()
         try:
-            config.read('config/pcn_self_calibration.ini')
+            config.read('config/pcn_normal_calibration.ini')
             self.loop_num = int(config.get('DEFAULT','loop_num'))
             self.calib_threshold = int(config.get('DEFAULT','calib_threshold'))
             self.fibre_delay_rt = int(config.get('WR','fibre_delay_rt'))
             self.sfp0_pn = config.get('WR','sfp0_pn')
             self.sfp1_pn = config.get('WR','sfp1_pn')
+            self.sfp0_tx = int(config.get('WR','sfp0_tx'))
+            self.sfp0_rx = int(config.get('WR','sfp0_rx'))
+            self.sfp0_alpha   = int(config.get('WR','sfp0_alpha'))
+            self.sfp1_tx = int(config.get('WR','sfp1_tx'))
+            self.sfp1_rx = int(config.get('WR','sfp1_rx'))
+            self.sfp1_alpha   = int(config.get('WR','sfp1_alpha'))
+            self.ch1_input_delay = round(float(config.get('TDC','ch1_input_delay')))
+            self.ch2_input_delay = round(float(config.get('TDC','ch2_input_delay')))
+            self.wrn_ip = int(config.get('LOG','wrn_ip'))%256
  
-        except:
+        except Exception as e:
+            print e
             print("Read configuration file error, use default values.")
             self.loop_num = 1
             self.calib_threshold = 150
             self.fibre_delay_rt = 15000
             self.sfp0_pn = "SFP-GE-BX"
             self.sfp1_pn = "SFP-GE-BX"
-        self.sfp0_tx = 232232
-        self.sfp0_rx = 167768
-        self.sfp1_tx = 175501
-        self.sfp1_rx = 224399
-        self.sfp0_alpha = 64398396
-        self.sfp1_alpha = -64398396
-        self.ch1_input_delay = 0
-        self.ch2_input_delay = 0
+            self.sfp0_tx = 232232
+            self.sfp0_rx = 167768
+            self.sfp1_tx = 175501
+            self.sfp1_rx = 224399
+            self.sfp0_alpha = 64398396
+            self.sfp1_alpha = -64398396
+            self.ch1_input_delay = 0
+            self.ch2_input_delay = 0
+            self.wrn_ip = 0
         self.pcn = wrn.wrn("pcn")
         self.tdc = tdc.tdc()
 
     def tdc_reset(self):
         return (self.tdc.restart())
 
+    def save_data(self):
+        """
+            save pcn parameter to pcn_normal_calibration.ini
+            
+            save calibration log to calibration_log.ini
+            
+        """
+        config = configparser.ConfigParser()
+        config['LOG'] = {'wrn_ip' : (self.wrn_ip)+1}
+        
+        config['WR'] = {'fibre_delay_rt' : self.fibre_delay_rt,
+                        'sfp0_pn': self.sfp0_pn,
+                        'sfp1_pn': self.sfp1_pn,
+                        'sfp0_tx': self.sfp0_tx,
+                        'sfp0_rx': self.sfp0_rx,
+                        'sfp1_tx': self.sfp1_tx,
+                        'sfp1_rx': self.sfp1_rx,
+                        'sfp0_alpha'  : self.sfp0_alpha,
+                        "sfp1_alpha"  : self.sfp1_alpha
+                        }
+        
+        config['TDC'] = {'ch1_input_delay' : self.ch1_input_delay,
+                         'ch2_input_delay ': self.ch2_input_delay
+                         }
+        
+        config['DEFAULT'] = {'calib_threshold' : self.calib_threshold,
+                             'loop_num ': self.loop_num
+                         }
+        with open('config/pcn_normal_calibration.ini','w') as configfile:
+            config.write(configfile)        
 
+            
     def tdc_self_calibration(self):
         """
         The tdc_self_calibration is used to measure the delays of two TDC inputs, including 
@@ -100,18 +142,16 @@ class pcn_self_calibration(object):
         ch1_ch2_diff_2 = numpy.mean(tdc_rise_diff_list_2)
         
         ch2_input_delay = ch1_input_delay - (ch1_ch2_diff_1+ch1_ch2_diff_2)//2
-
-        config = configparser.ConfigParser()
-        config['TDC'] = {'ch1_input_delay':ch1_input_delay,
-                         'ch2_input_delay':ch2_input_delay}
-        with open('config/pcn_normal_calibration.ini','w') as configfile:
-            config.write(configfile)
-
+        self.ch1_input_delay=ch1_input_delay
+        self.ch2_input_delay=ch2_input_delay
+        print ch1_input_delay,ch2_input_delay
+        self.save_data()
+        
         print("""
     The TDC calibration has finished.""")
 
     def wr_self_calibration(self):
-         """
+        """
         Calibration preparation.
 
         Determine several key parameters used in normal calibration mode.
@@ -122,7 +162,7 @@ class pcn_self_calibration(object):
     Connect PCN master port and PCN slave port with fibre L1.
     L1 should be fibre of several meters.
     Wait for several seconds and type in Enter to continue.""")
-        except Exception as e:
+        except:
             pass
     
         # Todo
@@ -171,8 +211,8 @@ class pcn_self_calibration(object):
             sfp1_pn = config.get('WR','sfp1_pn')
             fixed_delay_asym_master = int(config.get('WR','fixed_delay_asym_master'))
         except:
-            sfp0_pn = "AXGE-1254-0531"
-            sfp1_pn = "AXGE-3454-0531"
+            sfp0_pn = "AXGE-GE-BX"
+            sfp1_pn = "AXGE-GE-BX"
             fixed_delay_asym_master = 0
 
         fixed_delay_asym_slave = fixed_delay_asym_master - fixed_delay_asym
@@ -199,21 +239,7 @@ class pcn_self_calibration(object):
         self.pcn.set_sfp_info(1)
         print("Update PCN sfp database.")
 
-        config = configparser.ConfigParser()
-        config['WR'] = {'fibre_delay_rt' : fibre_delay_rt,
-                        'fixed_delay_asym_master': fixed_delay_asym_master,
-                        'fixed_delay_asym_slave' : fixed_delay_asym_slave,
-                        'sfp0_pn': sfp0_pn,
-                        'sfp1_pn': sfp1_pn,
-                        'sfp0_tx': sfp0_tx,
-                        'sfp0_rx': sfp0_rx,
-                        'sfp1_tx': sfp1_tx,
-                        'sfp1_rx': sfp1_rx,
-                        'sfp0_alpha'  : sfp0_alpha,
-                        "sfp1_alpha"  : sfp1_alpha
-                        }
-        with open('config/pcn_normal_calibration.ini','w') as configfile:
-            config.write(configfile)
+        self.save_data()
 
         print("""
     The wr calibration prepration has finished.""")
