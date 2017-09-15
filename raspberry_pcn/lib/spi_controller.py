@@ -52,6 +52,7 @@ class spi_controller(object):
         channel_result_list=[]
         while (not gpio.tdc_meas_finish()):
             timestamp = self.spi_controller.readbytes(self.timestamp_len)
+            
             timestamp_fine = 0
             timestamp_coarse = 0
             timestamp_tmp = 0

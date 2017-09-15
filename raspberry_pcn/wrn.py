@@ -16,11 +16,11 @@ class wrn(object):
             self.device = "/dev/ttyAMA0"
         else:
             self.device = "/dev/ttyUSB0"
-        self.sfp0_pn    = "AXGE-1254-0531"
+        self.sfp0_pn    = "SFP-GE-BX"
         self.sfp0_tx    = 0
         self.sfp0_rx    = 0
         self.sfp0_alpha = 0
-        self.sfp1_pn    = "AXGE-3454-0531"
+        self.sfp1_pn    = "SFP-GE-BX"
         self.sfp1_tx    = 0
         self.sfp1_rx    = 0
         self.sfp1_alpha = 0
@@ -134,11 +134,12 @@ class wrn(object):
 
 
         time.sleep(10)
-
+        
         if (check_status):
             timeout = 0
             sync_state = "IDLE"
             while (not ("TRACK_PHASE" in sync_state)):
+                print "wait sync..."
                 timeout += 1
                 sync_state = self.get_sync_state()
                 if (timeout>80):
@@ -163,21 +164,50 @@ class wrn(object):
         return ("null")
 
     def get_link_delay(self):
-
-        # Get sync state through command "stat"
-        link_delay_output = uart.SerialTx(self.device,"stat",1.2,1000)
-        # turn off the stat statistics
-        uart.SerialTx(self.device,"stat",0.2,200)
+        timeout = 0
+        sync_state = "IDLE"
+        while (not ("TRACK_PHASE" in sync_state)):
+                print "wait sync..."
+                timeout += 1
+                sync_state = self.get_sync_state()
+                if (timeout>80):
+                    print("The synchronization cannot be achieved.")
+                    return 1
+                else:
+                    timeout+=1
         # Todo
         # Get delayMM/delayMS/delaySM from WRPC, bitslide has been removed.
-        
-        return 10000,5000,5000
+        link_info = (sync_state.split("lnk")[1]).split(" ")
+        print link_info
+        delay_mm = int((link_info[9].split(":"))[1])
+        delay_ms = int((link_info[10].split(":"))[1])
+        delay_sm = delay_mm-delay_ms
+        return delay_mm,delay_ms,delay_sm
 
+    def set_init_cmd(self,wrn_ip):
+        ipset_cmd = "init add ip set 192.168.1"+str(wrn_ip)
+
+        if (self.role == "slave"):
+            uart.SerialTx(self.device,"init erase",0.2,200)
+            uart.SerialTx(self.device,"init add ptp stop",0.2,200)
+            uart.SerialTx(self.device,".x",0.2,200)
+            uart.SerialTx(self.device,ipset_cmd,0.2,200)
+            uart.SerialTx(self.device,"init add calibration",0.2,200)
+            uart.SerialTx(self.device,"init add ptp start",0.2,200)
+            print(uart.SerialTx(self.device,"init show",0.2,200))
+            print(uart.SerialTx(self.device,"init boot",0.2,200))
+            time.sleep(10)
+        return 0
+
+    def uart_test(self):
+        uart.SerialTxEsc(self.device)
+        print(uart.SerialTx(self.device,"init show",0.2,200))
 def main():
-    wrn_pcn = wrn("pcn")
+    wrn_pcn = wrn("wrn")
     # wrn_pcn.get_sync_state()
     # wrn_pcn.get_sfp_info()
-    wrn_pcn.restart(True)
+    #wrn_pcn.restart(True)
+    print wrn_pcn.get_link_delay()
     # print(wrn_pcn.sfp0_pn)
     # print(wrn_pcn.sfp0_tx)
     # print(wrn_pcn.sfp0_rx)
