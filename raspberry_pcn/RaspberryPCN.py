@@ -127,6 +127,7 @@ def main():
         ch1 = 'local'
     if (not ('ch2' in dir())):
         ch2 = 'remote'
+    print dir()
 
 if __name__ == "__main__":
     main()

@@ -1,10 +1,33 @@
 #!/usr/bin/python3
-import sys
+import sys,getopt
 import time
 import wrn 
 import tdc
 import numpy
 import configparser
+
+def usage():
+    """
+    Usage of PCN Normal Calibration
+    """
+    print(" ")
+    print("PCN normal calibration mode.")
+    print(" ")
+    print("-h, --help")
+    print("      Print out usage of this program.")
+    print(" ")
+    print("-m, --mode")
+    print("      Choose the work mode.")
+    print("      0 : using default value.")
+    print("      1 : do some extra process to get current value.")
+    print("      default value is 0")
+    print("")
+    print("-r, --role")
+    print("      Choose the wrn role")
+    print("      0 : wrn is in slave  mode.")
+    print("      1 : wrn is in master mode.")
+    print("      default value is 0")
+    print("")
 
 class pcn_normal_calibration(object):
     """
@@ -26,9 +49,11 @@ class pcn_normal_calibration(object):
             self.sfp1_tx = int(config.get('WR','sfp1_tx'))
             self.sfp1_rx = int(config.get('WR','sfp1_rx'))
             self.sfp1_alpha   = int(config.get('WR','sfp1_alpha'))
-            self.ch1_input_delay = int(config.get('TDC','ch1_input_delay'))
-            self.ch2_input_delay = int(config.get('TDC','ch2_input_delay'))
-        except:
+            self.ch1_input_delay = round(float(config.get('TDC','ch1_input_delay')))
+            self.ch2_input_delay = round(float(config.get('TDC','ch2_input_delay')))
+            self.wrn_ip = int(config.get('LOG','wrn_ip'))%256
+        except Exception as e:
+            print e
             print("Read configuration file error, use default values.")
             self.loop_num = 1
             self.calib_threshold = 150
@@ -43,6 +68,8 @@ class pcn_normal_calibration(object):
             self.sfp1_alpha = -64398396
             self.ch1_input_delay = 0
             self.ch2_input_delay = 0
+            self.wrn_ip = 0
+        self.skew = 0
         self.pcn = wrn.wrn("pcn")
         self.wrn_role = wrn_role
         self.wrn = wrn.wrn(wrn_role)
@@ -51,173 +78,9 @@ class pcn_normal_calibration(object):
     def tdc_reset(self):
         return (self.tdc.restart())
 
-    def pre_calibration(self):
-        """
-        Calibration preparation.
-
-        Determine several key parameters used in normal calibration mode.
-        """
-        input("""
-    Now you are in calibration preparation phase. 
-    Connect PCN master port and PCN slave port with fibre L1.
-    L1 should be fibre of several meters.
-    Wait for several seconds and type in Enter to continue.""")
-        # Todo
-        # Modify the PCN to get the delayMM, delay_ms, delay_sm.
-        rt_delay_l1 = 0
-        rt_delay_l1_sm = 200
-        rt_delay_l1_ms = 200
-
-        input("""
-    Connect PCN master port and PCN slave port with fibre L2. 
-    L2 should be fibre whose length is above 1km.
-    Wait for several seconds and type in Enter to continue.""")
-        rt_delay_l2 = 0
-        rt_delay_l2_sm = 900
-        rt_delay_l2_ms = 900
-
-        input("""
-    Connect PCN master port and PCN slave port with fibre L1+L2. 
-    Wait for several seconds and type in Enter to continue.""")
-        rt_delay_l1_l2 = 1
-        rt_delay_l1_l2_sm = 1000
-        rt_delay_l1_l2_ms = 1000
-
-        # Todo
-        # Get the exact L1 fibre delay.
-        fibre_delay_rt = rt_delay_l1_l2 - rt_delay_l2
-        # Get fixed delay summary
-        fixed_delay_sum = rt_delay_l1 + rt_delay_l2 - rt_delay_l1_l2
-        # Get fixed delay asymmetry between master&slave port of PCN
-        fixed_delay_asym= (rt_delay_l1_ms + rt_delay_l2_ms - rt_delay_l1_l2_ms) - \
-                          (rt_delay_l1_sm + rt_delay_l2_sm - rt_delay_l1_l2_sm)
-        try:
-            config.read('config/pcn_normal_calibration.ini')
-            sfp0_pn = config.get('WR','sfp0_pn')
-            sfp1_pn = config.get('WR','sfp1_pn')
-            fixed_delay_asym_master = int(config.get('WR','fixed_delay_asym_master'))
-        except:
-            sfp0_pn = "AXGE-1254-0531"
-            sfp1_pn = "AXGE-3454-0531"
-            fixed_delay_asym_master = 0
-
-        fixed_delay_asym_slave = fixed_delay_asym_master - fixed_delay_asym
-        sfp0_tx = fixed_delay_sum//2 + fixed_delay_asym_master
-        sfp0_rx = fixed_delay_sum//2 - fixed_delay_asym_master
-        sfp1_tx = fixed_delay_sum//2 + fixed_delay_asym_slave
-        sfp1_rx = fixed_delay_sum//2 - fixed_delay_asym_slave
-
-        # Get alpha
-        fibre_alpha = (float(rt_delay_l1_l2_ms - rt_delay_l1_ms) / float(rt_delay_l1_l2_sm - rt_delay_l1_sm)) - 1
-        fibre_alpha_int = int(fibre_alpha * (2**40))
-        sfp0_alpha = fibre_alpha_int
-        sfp1_alpha = -fibre_alpha_int
-        self.pcn.sfp0_pn    = sfp0_pn
-        self.pcn.sfp0_tx    = sfp0_tx
-        self.pcn.sfp0_rx    = sfp0_rx
-        self.pcn.sfp0_alpha = sfp0_alpha
-        self.pcn.sfp1_pn    = sfp1_pn
-        self.pcn.sfp1_tx    = sfp1_tx
-        self.pcn.sfp1_rx    = sfp1_rx
-        self.pcn.sfp1_alpha = sfp1_alpha
-        
-        self.pcn.set_sfp_info(0)
-        self.pcn.set_sfp_info(1)
-        print("Update PCN sfp database.")
-
-        input("""
-    L1 is chosen as the reference fibre in following calibration process.
-    Now disconnect the PCN ports. Plug two mPPS signals of PCN into two TDC inputs.
-    Wait for several seconds and type in Enter to continue.""")
-        # Todo
-        # start the TDC.
-
-        # Todo
-        # Measure the PPS skew
-        ch1_input_delay = 0
-        ch1_ch2_diff_1 = 0
-
-        input("""
-    Now exchange the two mPPS input signals.
-    Wait for several seconds and type in Enter to continue.""")
-
-        # Todo
-        # Measure the PPS skew again
-        ch1_ch2_diff_2 = 0        
-
-        ch2_input_delay = ch1_input_delay - (ch1_ch2_diff_1+ch1_ch2_diff_2)//2
-
-        config = configparser.ConfigParser()
-        config['DEFAULT'] = {'loop_num':'2',
-                             'calib_threshold':self.calib_threshold}
-        config['WR'] = {'fibre_delay_rt' : fibre_delay_rt,
-                        'fixed_delay_asym_master': fixed_delay_asym_master,
-                        'fixed_delay_asym_slave' : fixed_delay_asym_slave,
-                        'sfp0_pn': sfp0_pn,
-                        'sfp1_pn': sfp1_pn,
-                        'sfp0_tx': sfp0_tx,
-                        'sfp0_rx': sfp0_rx,
-                        'sfp1_tx': sfp1_tx,
-                        'sfp1_rx': sfp1_rx,
-                        'sfp0_alpha'  : sfp0_alpha,
-                        "sfp1_alpha"  : sfp1_alpha
-                        }
-        config['TDC'] = {'ch1_input_delay':ch1_input_delay,
-                         'ch2_input_delay':ch2_input_delay}
-        with open('config/pcn_normal_calibration.ini','w') as configfile:
-            config.write(configfile)
-
-        print("""
-    The calibration prepration has finished.""")
-
-    def do_calibration(self):
-        
-        ## WR information part
-        self.wrn.get_sfp_info()
-        if (self.wrn_role == "slave"):
-            delay_mm, delay_ms, delay_sm = self.wrn.get_link_delay()
-            self.wrn.sfp0_tx = (delay_mm - self.pcn.sfp1_tx - self.pcn.sfp1_rx - self.fibre_delay_rt) / 2
-            self.wrn.sfp0_rx = (delay_mm - self.pcn.sfp1_tx - self.pcn.sfp1_rx - self.fibre_delay_rt) / 2
-            # Reset the sfp database of wrn and restart wrn
-            self.wrn.erase_sfp_info()
-            self.wrn.set_sfp_info(0)
-            self.wrn.set_sfp_info(1) # Avoid losing the SFP1 info
-            if(self.wrn.restart(True)):
-                return 1
-        elif (self.wrn_role == "master"):
-            # Todo
-            # Should get the sync status through pcn
-            delay_mm, delay_ms, delay_sm = self.wrn.get_link_delay()
-            self.wrn.sfp1_tx = (delay_mm - self.pcn.sfp0_tx - self.pcn.sfp0_rx - self.fibre_delay_rt) / 2
-            self.wrn.sfp1_rx = (delay_mm - self.pcn.sfp0_tx - self.pcn.sfp0_rx - self.fibre_delay_rt) / 2
-            # Reset the sfp database of wrn and restart wrn
-            self.wrn.erase_sfp_info()
-            self.wrn.set_sfp_info(0) # Avoid losing the SFP0 info
-            self.wrn.set_sfp_info(1) 
-            if(self.pcn.restart(True)):
-                return 1
-        else:
-            print("The wrn role is not valid.")
-            return 1
-
-        ## TDC measurement part
-        # restart the TDC
-        self.tdc_reset(self)
-        time.sleep(1)
-        timeout = 0
-        while(abs(do_verification(self))>self.calib_threshold):
-            if self.wrn_role=="slave":
-                self.wrn.restart(True)
-            else:
-                self.pcn.restart(True)
-            time.sleep(1)
-            if timeout<5:
-                timeout += 1
-            else:
-                return 1
-        print("Calibration has finished!")
-        return 0
-
+    
+    #Todo
+    #Need to consider the ch1_input_delay and ch2_input_delay
     def do_verification(self):
         calc_rise_diff = 0
         calc_fall_diff = 0
@@ -233,9 +96,12 @@ class pcn_normal_calibration(object):
                     calc_rise_diff += numpy.mean(calc_rise_list)
                 else:
                     print("The std %d of TDC rise measurement is too large!"%(numpy.std(calc_rise_list)))
+                    self.skew = "std to large"
                     return 0
             else:
                 print("There are no enough TDC rise measurement results")
+                print len(calc_rise_list)
+                self.skew = "no enough TDC rise measurement results"
                 return 0
                 
             if len(calc_fall_list)>10:
@@ -248,8 +114,8 @@ class pcn_normal_calibration(object):
                 print("There are no enough TDC fall measurement results!")
                 return 0
         
-        calc_rise_diff = calc_rise_diff // self.loop_num
-        calc_fall_diff = calc_fall_diff // self.loop_num
+        calc_rise_diff = calc_rise_diff // self.loop_num + self.ch1_input_delay - self.ch2_input_delay
+        calc_fall_diff = calc_fall_diff // self.loop_num + self.ch1_input_delay - self.ch2_input_delay
 
         print("The PPS skew between master and slave is %d"%(calc_rise_diff))
 
@@ -274,14 +140,199 @@ class pcn_normal_calibration(object):
                 self.wrn.erase_sfp_info()
                 self.wrn.set_sfp_info(0)
                 self.wrn.set_sfp_info(1)
+        self.skew = calc_rise_diff
         return calc_rise_diff
 
+    def save_data(self):
+        """
+            save pcn parameter to pcn_normal_calibration.ini
+            
+            save calibration log to calibration_log.ini
+            
+        """
+        config = configparser.ConfigParser()
+        config['LOG'] = {'wrn_ip' : (self.wrn_ip)+1}
+        
+        config['WR'] = {'fibre_delay_rt' : self.fibre_delay_rt,
+                        'sfp0_pn': self.sfp0_pn,
+                        'sfp1_pn': self.sfp1_pn,
+                        'sfp0_tx': self.sfp0_tx,
+                        'sfp0_rx': self.sfp0_rx,
+                        'sfp1_tx': self.sfp1_tx,
+                        'sfp1_rx': self.sfp1_rx,
+                        'sfp0_alpha'  : self.sfp0_alpha,
+                        "sfp1_alpha"  : self.sfp1_alpha
+                        }
+        
+        config['TDC'] = {'ch1_input_delay' : self.ch1_input_delay,
+                         'ch2_input_delay ': self.ch2_input_delay
+                         }
+        
+        config['DEFAULT'] = {'calib_threshold' : self.calib_threshold,
+                             'loop_num ': self.loop_num
+                         }
+        with open('config/pcn_normal_calibration.ini','w') as configfile:
+            config.write(configfile)        
+        
+        log_config = configparser.ConfigParser()
+        wrn_log_index = str(self.wrn_ip+1)
+        log_config[wrn_log_index] ={
+                        'wrn_sfp0_pn': self.wrn.sfp0_pn,
+                        'wrn_sfp0_tx': self.wrn.sfp0_tx,
+                        'wrn_sfp0_rx': self.wrn.sfp0_rx,
+                        'wrn_sfp0_alpha'  : self.wrn.sfp0_alpha,
+                        'wrn_rise_skew' : self.skew
+                        }
+                        
+        with open('config/calibration_log.ini','a') as configfile:
+            log_config.write(configfile)
+
+            
+    def do_calibration(self):
+        
+        ## WR information part
+        
+        self.wrn.get_sfp_info()
+        if (self.wrn_role == "slave"):
+            delay_mm, delay_ms, delay_sm = self.wrn.get_link_delay()
+            self.wrn.sfp0_tx = (delay_mm - self.pcn.sfp1_tx - self.pcn.sfp1_rx - self.fibre_delay_rt) / 2
+            self.wrn.sfp0_rx = (delay_mm - self.pcn.sfp1_tx - self.pcn.sfp1_rx - self.fibre_delay_rt) / 2
+            # Reset the sfp database of wrn and restart wrn
+            self.wrn.erase_sfp_info()
+            self.wrn.set_sfp_info(0)
+            self.wrn.set_sfp_info(1) # Avoid losing the SFP1 info
+            if(self.wrn.restart(True)):
+                return 1
+        elif (self.wrn_role == "master"):
+            # Todo
+            # Should get the sync status through pcn
+            delay_mm, delay_ms, delay_sm = self.pcn.get_link_delay()
+            self.wrn.sfp1_tx = (delay_mm - self.pcn.sfp0_tx - self.pcn.sfp0_rx - self.fibre_delay_rt) / 2
+            self.wrn.sfp1_rx = (delay_mm - self.pcn.sfp0_tx - self.pcn.sfp0_rx - self.fibre_delay_rt) / 2
+            # Reset the sfp database of wrn and restart wrn
+            self.wrn.erase_sfp_info()
+            self.wrn.set_sfp_info(0) # Avoid losing the SFP0 info
+            self.wrn.set_sfp_info(1) 
+            if(self.pcn.restart(True)):
+                return 1
+        else:
+            print("The wrn role is not valid.")
+            return 1
+
+        ## TDC measurement part
+        # restart the TDC
+        self.tdc_reset()
+        time.sleep(1)
+        timeout = 0
+        print "do_veri"
+        self.pcn.uart_test()
+        while(abs(self.do_verification())>self.calib_threshold):
+            if self.wrn_role=="slave":
+                self.wrn.restart(True)
+            else:
+                self.pcn.restart(True)
+            time.sleep(1)
+            if timeout<5:
+                timeout += 1
+            else:
+                return 1
+        self.save_data()
+        print("Calibration has finished!")
+        return 0
+
+
+
+
 def main():
-    calib = pcn_normal_calibration("slave")
-    # calib.pre_calibration()
+    """
+    NAME:
+        Portable calibration node normal calibration mode.
+
+    SYNOPSIS:
+        ./pcn_normal_calibration.py [-h] [-m mode] [-r role]
+    
+    DESCRIPTION:
+        This script is used for portable calibration node. It 
+        has two parameter to choose.The parameter "mode" decides 
+        the calibration mode and the parameter "role" decides 
+        the wrn mode in pcn. 
+
+    OPTIONS:
+        -h, --help
+              print out usage of this program.
+         
+        -m, --mode
+              Choose the work mode.
+              0 : using default value.
+              1 : do some extra process to get current TDC parameter.
+              default value is 0
+        
+        -r, --role
+              Choose the wrn role
+              0 : wrn is in slave  mode.
+              1 : wrn is in master mode.
+              default value is 0
+        
+    """
+    
+    try:
+        opts, args = getopt.getopt(sys.argv[1:], "hm:r:",["help","mode ","role "])
+    except getopt.GetoptError:
+        usage()
+        sys.exit()
+    if len(opts) == 0:
+        print("Running in default mode.")
+    else:
+        for opt,value in opts:
+            if opt in ("-h","--help"):
+                usage()
+                sys.exit()
+            if opt in ("-m","--mode"):
+                mode = int(value)
+                if mode==0:
+                    print("Using default TDC paremeter.")
+                elif mode==1:
+                    print("Enter TDC parameter test.")
+                else:
+                    print("Wrong mode parameter") 
+                    usage()
+
+            if opt in ("-r","--role"):
+                if int(value)==0:
+                    print ("Wrn is in slave mode")
+                    wrn_role="slave"
+                elif int(value)==1:
+                    print ("Wrn is in master mode")
+                    wrn_role="master"
+                else :
+                    print ("Wrong role parameter")
+                    sys.exit()
+
+    if (not ('mode' in dir())):
+        mode = 0
+        print("Using default TDC paremeter.")
+
+    if (not ('role' in dir())):
+        wrn_role = "slave"
+        print ("Wrn is in slave mode")
+
+
+    if mode == 0:    
+        calib = pcn_normal_calibration(wrn_role)
+        calib.do_calibration()
+
+    elif mode == 1:
+        print ("")
+    
+    else:
+        pass
+    
+    #calib = pcn_normal_calibration("slave")
+    #calib.do_calibration()
+    # #calib.pre_calibration()
     # calib.do_calibration()
-    # calib.tdc_reset()
-    calib.do_verification()
+    # # calib.tdc_reset()
+    # #calib.do_verification()
 
 if __name__ == '__main__':
     main()
